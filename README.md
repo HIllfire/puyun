@@ -1,2 +1,502 @@
 # puyun
 发票整理
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电子发票信息整理</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .input-container,
+        .output-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            resize: vertical;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+
+        #inputText {
+            min-height: 210px;
+        }
+
+        #outputText {
+            min-height: 200px;
+        }
+
+        button {
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+
+        button:hover {
+            filter: brightness(90%);
+        }
+
+        button:active {
+            filter: brightness(80%);
+        }
+
+        .btn-blue {
+            background-color: #007BFF;
+        }
+
+        .btn-orange {
+            background-color: #FF5001;
+        }
+
+        .btn-purple {
+            background-color: #8A2BE2;
+        }
+
+        .tax-id {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        
+        .software-buttons {
+            margin-bottom: 15px;
+        }
+       /* 复制成功提示样式 */
+        .copy-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .copy-toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>电子发票信息整理</h1>
+    <div class="input-container">
+        <textarea id="inputText" placeholder="请输入需要整理的发票信息"></textarea>
+        <div class="software-buttons">
+            <button class="btn-blue" onclick="addSoftware('普云交易')">普云交易</button>
+            <button class="btn-orange" onclick="addSoftware('普云商品')">普云商品</button>
+            <button class="btn-blue" onclick="addSoftware('短信')">短信</button>
+            <button class="btn-purple" onclick="addInvoiceType('电子专票')">电子专票</button>
+            <button class="btn-purple" onclick="addInvoiceType('电子普票')">电子普票</button>
+        </div>
+        <button class="btn-blue" onclick="整理信息()">整理信息</button>
+        <button class="btn-blue" onclick="清空输入()">清空输入</button>
+    </div>
+    <div class="output-container">
+        <textarea id="outputText" placeholder="整理后的信息将显示在这里"></textarea>
+        <div id="validationMessage"></div>
+        <div id="phoneValidationMessage"></div>
+        <div id="emailValidationMessage"></div>
+        <br>
+        <button class="btn-blue" onclick="复制信息()">复制整理后的信息</button>
+        <button class="btn-blue" onclick="清空整理后数据()">清空整理后数据</button>
+
+    <!-- 复制成功提示元素 -->
+    <div class="copy-toast" id="copyToast">复制成功</div>
+
+    </div>
+
+    <script>
+        // 添加软件按钮的功能
+        function addSoftware(softwareName) {
+            const inputText = document.getElementById('inputText');
+            if (!inputText.value.trim()) {
+                inputText.value = `【订购软件】：${softwareName}`;
+            } else {
+                const regex = /【订购软件】：[^\n]+/;
+                if (regex.test(inputText.value)) {
+                    inputText.value = inputText.value.replace(regex, `【订购软件】：${softwareName}`);
+                } else {
+                    inputText.value += `\n【订购软件】：${softwareName}`;
+                }
+            }
+            inputText.focus();
+        }
+
+        // 添加发票类型按钮的功能
+        function addInvoiceType(type) {
+            const inputText = document.getElementById('inputText');
+            if (!inputText.value.trim()) {
+                inputText.value = `【发票类型】：${type}`;
+            } else {
+                const regex = /【发票类型】：[^\n]+/;
+                if (regex.test(inputText.value)) {
+                    inputText.value = inputText.value.replace(regex, `【发票类型】：${type}`);
+                } else {
+                    inputText.value += `\n【发票类型】：${type}`;
+                }
+            }
+            inputText.focus();
+        }
+
+        // 定义相似字段匹配规则
+        const 相似字段匹配 = {
+            "【订购日期】": ["订购时间", "订购日期", "日期", "时间"],
+            "【订购旺旺】": ["订购旺旺", "旺旺", "店铺昵称", "昵称", "店铺"],
+            "【订购软件】": ["订购软件", "软件", "普云打单", "打单", "交易", "普云交易", "商品", "普云商品", "短信"],
+            "【开票金额】": ["金额", "开票金额"],
+            "【发票抬头】": ["发票抬头", "抬头", "公司名称", "名称"],
+            "【税号】": ["纳税识别号","纳税人识别号" ,"税号", "统一社会信用代码", "信用代码", "社会信用代码"],
+            "【电子邮箱】": ["电子邮箱", "邮箱", "E-mail", "email"],
+            "【发票类型】": ["发票类型", "票种", "电子专票", "电子普票"],
+            "【联系手机】": ["手机", "联系手机", "电话号码", "电话", "手机号"]
+        };
+
+        // 整理信息函数
+        function 整理信息() {
+            const input = document.getElementById('inputText').value;
+            const lines = input.split('\n');
+            const result = {
+                "【订购日期】": "",
+                "【订购旺旺】": "",
+                "【订购软件】": "",
+                "【开票金额】": "",
+                "【发票抬头】": "",
+                "【税号】": "",
+                "【发票类型】": "",
+                "【电子邮箱】": "",
+                "【联系手机】": ""
+            };
+            let hasExplicitInvoiceTitle = false;
+            let hasOrderDate = false;
+
+            lines.forEach(line => {
+                const lineWithoutSpaces = line.replace(/\s/g, '');
+
+                // 首先检查整行是否包含邮箱地址（包含@符号）
+                if (!result["【电子邮箱】"]) {
+                    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+                    const emailMatch = line.match(emailRegex);
+                    if (emailMatch) {
+                        result["【电子邮箱】"] = emailMatch[0];
+                    }
+                }
+
+                for (const [目标字段, 相似字段列表] of Object.entries(相似字段匹配)) {
+                    if (目标字段 === "【订购日期】" && !hasOrderDate) {
+                        if (lineWithoutSpaces.includes("【订购日期】")) {
+                            let value = line.split("【订购日期】")[1]?.replace('：', '').trim();
+                            
+                            let dateRegex = /(\d{4})年(\d{1,2})月(\d{1,2})[日号]/;
+                            let match = value.match(dateRegex);
+                            
+                            if (match) {
+                                const [, year, month, day] = match;
+                                result[目标字段] = `${year}年${month}月${day}日`;
+                                hasOrderDate = true;
+                                break;
+                            }
+                            
+                            dateRegex = /(\d{4})[.-](\d{1,2})[.-](\d{1,2})/;
+                            match = value.match(dateRegex);
+                            
+                            if (match) {
+                                const [, year, month, day] = match;
+                                result[目标字段] = `${year}年${month}月${day}日`;
+                                hasOrderDate = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!hasOrderDate || 目标字段 !== "【订购日期】") {
+                        相似字段列表.forEach(相似字段 => {
+                            if (lineWithoutSpaces.includes(相似字段)) {
+                                let value = "";
+                                
+                                const colonIndex = line.indexOf('：');
+                                if (colonIndex > -1) {
+                                    value = line.substring(colonIndex + 1).trim();
+                                } else {
+                                    const bracketIndex = line.indexOf('】');
+                                    if (bracketIndex > -1) {
+                                        value = line.substring(bracketIndex + 1).trim();
+                                    }
+                                }
+
+                                if (目标字段 === "【订购日期】") {
+                                    let dateRegex = /(\d{4})年(\d{1,2})月(\d{1,2})[日号]/;
+                                    let match = value.match(dateRegex);
+                                    
+                                    if (match) {
+                                        const [, year, month, day] = match;
+                                        result[目标字段] = `${year}年${month}月${day}日`;
+                                        hasOrderDate = true;
+                                        return;
+                                    }
+                                    
+                                    dateRegex = /(\d{4})[.-](\d{1,2})[.-](\d{1,2})/;
+                                    match = value.match(dateRegex);
+                                    
+                                    if (match) {
+                                        const [, year, month, day] = match;
+                                        result[目标字段] = `${year}年${month}月${day}日`;
+                                        hasOrderDate = true;
+                                        return;
+                                    }
+                                    
+                                    value = "";
+                                } else if (目标字段 === "【订购软件】") {
+                                    if (value.includes("普云交易")) {
+                                        result[目标字段] = "普云交易";
+                                        return;
+                                    } else if (value.includes("普云商品")) {
+                                        result[目标字段] = "普云商品";
+                                        return;
+                                    } else if (value.includes("短信")) {
+                                        result[目标字段] = "短信";
+                                        return;
+                                    }
+                                    
+                                    if (["普云打单", "打单", "交易"].includes(相似字段)) {
+                                        result[目标字段] = "普云交易";
+                                        return;
+                                    } else if (["普云商品", "商品"].includes(相似字段)) {
+                                        result[目标字段] = "普云商品";
+                                        return;
+                                    } else if (["短信"].includes(相似字段)) {
+                                        result[目标字段] = "短信";
+                                        return;
+                                    }
+                                } else if (目标字段 === "【发票类型】") {
+                                    if (line.includes("电子专票")) {
+                                        value = "电子专票";
+                                    } else if (line.includes("电子普票")) {
+                                        value = "电子普票";
+                                    } else {
+                                        value = value || "";
+                                    }
+                                } else if (目标字段 === "【联系手机】") {
+                                    if (value) {
+                                        const cleanPhone = value.replace(/[^\d]/g, '');
+                                        
+                                        if (/^\d{11}$/.test(cleanPhone)) {
+                                            result[目标字段] = cleanPhone;
+                                        }
+                                    }
+                                } else if (目标字段 === "【订购旺旺】") {
+                                    if (value) {
+                                        value = value.replace(/^旺旺[:：]?\s*/, '');
+                                        value = value.replace(/^昵称[:：]?\s*/, '');
+                                        value = value.replace(/^店铺[:：]?\s*/, '');
+                                        result[目标字段] = value;
+                                    }
+                                } else if (目标字段 === "【电子邮箱】") {
+                                    // 从邮箱相关字段中提取邮箱地址
+                                    if (value) {
+                                        // 检查是否包含@符号
+                                        if (value.includes('@')) {
+                                            // 使用正则提取标准邮箱格式
+                                            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+                                            const emailMatch = value.match(emailRegex);
+                                            if (emailMatch) {
+                                                result[目标字段] = emailMatch[0];
+                                            } else {
+                                                // 如果不符合标准格式但包含@，仍保留原始值
+                                                result[目标字段] = value;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (目标字段 === "【税号】") {
+                                    // 处理税号，去除所有空格
+                                    let cleanValue = value.replace(/\s/g, '');
+                                    result[目标字段] = cleanValue;
+                                    
+                                    if (["纳税识别号", "税号", "统一社会信用代码"].includes(相似字段)) {
+                                        result[目标字段] = cleanValue;
+                                    } else if (["税", "号", "信用代码", "社会信用代码"].includes(相似字段)) {
+                                        const regex = /[A-Za-z0-9]{18}/;
+                                        const match = line.match(regex);
+                                        if (match) {
+                                            const index = line.indexOf(match[0]);
+                                            const keywordIndex = line.indexOf(相似字段);
+                                            if (index > keywordIndex) {
+                                                // 匹配到的税号也去除空格
+                                                result[目标字段] = match[0].replace(/\s/g, '');
+                                                return;
+                                            }
+                                        }
+                                    }
+                                } else if (目标字段 === "【发票抬头】") {
+                                    if (colonIndex > -1) {
+                                        value = line.substring(colonIndex + 1).trim();
+                                    } else {
+                                        const equalIndex = line.indexOf('=');
+                                        if (equalIndex > -1) {
+                                            value = line.substring(equalIndex + 1).trim();
+                                        } else {
+                                            const enColonIndex = line.indexOf(':');
+                                            if (enColonIndex > -1) {
+                                                value = line.substring(enColonIndex + 1).trim();
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (value.endsWith('；')) {
+                                        value = value.slice(0, -1).trim();
+                                    }
+                                    if (value.endsWith(';')) {
+                                        value = value.slice(0, -1).trim();
+                                    }
+                                    
+                                    if (value.includes('纳税人识别号')) {
+                                        const parts = value.split('纳税人识别号');
+                                        value = parts[0].trim();
+                                    } else if (value.includes('统一社会信用代码')) {
+                                        const parts = value.split('统一社会信用代码');
+                                        value = parts[0].trim();
+                                    } else if (value.includes('税号')) {
+                                        const parts = value.split('税号');
+                                        value = parts[0].trim();
+                                    } else if (value.includes('信用代码')) {
+                                        const parts = value.split('信用代码');
+                                        value = parts[0].trim();
+                                    }
+
+                                    if (value && !result[目标字段]) {
+                                        result[目标字段] = value;
+                                    }
+                                }
+
+                                if (value && !result[目标字段] && !["【电子邮箱】", "【联系手机】", "【订购日期】"].includes(目标字段)) {
+                                    result[目标字段] = value;
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+
+            // 验证税号格式
+            let isValidTaxId = true;
+            if (result["【税号】"]) {
+                const cleanTaxId = result["【税号】"].replace(/\s/g, ''); // 再次确保没有空格
+                if (cleanTaxId.length !== 18) {
+                    isValidTaxId = false;
+                }
+            }
+
+            // 验证手机号格式
+            let isValidPhone = true;
+            if (result["【联系手机】"]) {
+                const cleanPhone = result["【联系手机】"].replace(/\s/g, '');
+                if (!/^1\d{10}$/.test(cleanPhone)) {
+                    isValidPhone = false;
+                }
+            }
+
+            // 验证邮箱格式
+            let isValidEmail = true;
+            if (result["【电子邮箱】"]) {
+                const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+                if (!emailRegex.test(result["【电子邮箱】"])) {
+                    isValidEmail = false;
+                }
+            }
+
+            // 显示验证信息
+            document.getElementById('validationMessage').innerHTML = result["【税号】"] ? 
+                (isValidTaxId ? "" : `<span class="error">税号格式不正确，现在 ${result["【税号】"].replace(/\s/g, '').length} 位，（应为18位）</span>`) : "";
+            
+            document.getElementById('phoneValidationMessage').innerHTML = result["【联系手机】"] ? 
+                (isValidPhone ? "" : '<span class="error">手机号格式不正确（应为11位数字）</span>') : "";
+            
+            document.getElementById('emailValidationMessage').innerHTML = result["【电子邮箱】"] ? 
+                (isValidEmail ? "" : '<span class="error">邮箱格式不正确</span>') : "";
+
+            // 生成输出文本
+            let output = "";
+            for (const [key, value] of Object.entries(result)) {
+                if (value) {
+                    output += `${key}：${value}\n`;
+                }
+            }
+            document.getElementById('outputText').value = output.trim();
+        }
+
+        // 清空输入
+        function 清空输入() {
+            document.getElementById('inputText').value = '';
+            document.getElementById('inputText').focus();
+        }
+
+        // 清空整理后数据
+        function 清空整理后数据() {
+            document.getElementById('outputText').value = '';
+            document.getElementById('validationMessage').innerHTML = '';
+            document.getElementById('phoneValidationMessage').innerHTML = '';
+            document.getElementById('emailValidationMessage').innerHTML = '';
+        }
+
+        // 复制信息
+        function 复制信息() {
+            const outputText = document.getElementById('outputText');
+            outputText.select();
+            document.execCommand('copy');
+            
+            // 显示复制成功提示
+            const toast = document.getElementById('copyToast');
+            toast.classList.add('show');
+            
+            // 1秒后隐藏提示
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
